@@ -21,9 +21,9 @@ class CreateTransactionService {
   }: CreateTransactionDto): Promise<Transaction | null> {
     let newTransaction = null;
 
-    const transacrionsRespository = getCustomRepository(TransactionsRepository);
+    const transactionsRepository = getCustomRepository(TransactionsRepository);
 
-    const balance = await transacrionsRespository.getBalance();
+    const balance = await transactionsRepository.getBalance();
 
     if (type === 'outcome' && balance.total < value) {
       throw new AppError('Invalid outcome transaction');
@@ -41,7 +41,7 @@ class CreateTransactionService {
         category = await em.save(category);
       }
 
-      newTransaction = transacrionsRespository.create({
+      newTransaction = transactionsRepository.create({
         title,
         type,
         value,
