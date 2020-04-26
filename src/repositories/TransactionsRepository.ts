@@ -8,15 +8,10 @@ interface Balance {
   total: number;
 }
 
-interface TransactionSummaryDto {
-  transactions: Transaction[];
-  balance: Balance;
-}
-
 @EntityRepository(Transaction)
 class TransactionsRepository extends Repository<Transaction> {
-  public async getBalance(): Promise<TransactionSummaryDto> {
-    const transactions = await this.find();
+  public async getBalance(transactions?: Transaction[]): Promise<Balance> {
+    const allTransactions = transactions || (await this.find());
 
     let balance: Balance = {
       income: 0,
@@ -24,7 +19,7 @@ class TransactionsRepository extends Repository<Transaction> {
       total: 0,
     };
 
-    balance = transactions.reduce((acc, transaction) => {
+    balance = allTransactions.reduce((acc, transaction) => {
       if (transaction.isIncome()) {
         acc.income += transaction.value;
       } else if (transaction.isOutcome()) {
@@ -36,7 +31,7 @@ class TransactionsRepository extends Repository<Transaction> {
 
     balance.total = balance.income - balance.outcome;
 
-    return { transactions, balance };
+    return balance;
   }
 }
 

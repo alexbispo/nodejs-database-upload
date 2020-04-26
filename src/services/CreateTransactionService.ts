@@ -1,6 +1,6 @@
-// import AppError from '../errors/AppError';
-
 import { getRepository, getManager, getCustomRepository } from 'typeorm';
+import AppError from '../errors/AppError';
+
 import Transaction from '../models/Transaction';
 import Category from '../models/Category';
 import TransactionsRepository from '../repositories/TransactionsRepository';
@@ -21,6 +21,14 @@ class CreateTransactionService {
   }: CreateTransactionDto): Promise<Transaction | null> {
     let newTransaction = null;
 
+    const transacrionsRespository = getCustomRepository(TransactionsRepository);
+
+    const balance = await transacrionsRespository.getBalance();
+
+    if (type === 'outcome' && balance.total < value) {
+      throw new AppError('Invalid outcome transaction');
+    }
+
     await getManager().transaction(async em => {
       const categoriesRepository = getRepository(Category);
 
@@ -32,10 +40,6 @@ class CreateTransactionService {
         category = categoriesRepository.create({ title: categoryTitle });
         category = await em.save(category);
       }
-
-      const transacrionsRespository = getCustomRepository(
-        TransactionsRepository,
-      );
 
       newTransaction = transacrionsRespository.create({
         title,
