@@ -1,4 +1,4 @@
-import { getRepository, getManager, getCustomRepository } from 'typeorm';
+import { getRepository, getCustomRepository, In, getConnection } from 'typeorm';
 import AppError from '../errors/AppError';
 
 import Transaction from '../models/Transaction';
@@ -18,9 +18,7 @@ class CreateTransactionService {
     type,
     value,
     categoryTitle,
-  }: CreateTransactionDto): Promise<Transaction | null> {
-    let newTransaction = null;
-
+  }: CreateTransactionDto): Promise<Transaction> {
     const transactionsRepository = getCustomRepository(TransactionsRepository);
 
     const balance = await transactionsRepository.getBalance();
@@ -29,29 +27,71 @@ class CreateTransactionService {
       throw new AppError('Invalid outcome transaction');
     }
 
-    await getManager().transaction(async em => {
-      const categoriesRepository = getRepository(Category);
+    const categoriesRepository = getRepository(Category);
 
-      let category = await categoriesRepository.findOne({
-        where: { title: categoryTitle },
-      });
-
-      if (!category) {
-        category = categoriesRepository.create({ title: categoryTitle });
-        category = await em.save(category);
-      }
-
-      newTransaction = transactionsRepository.create({
-        title,
-        type,
-        value,
-        category,
-      });
-
-      newTransaction = await em.save(newTransaction);
+    let category = await categoriesRepository.findOne({
+      where: { title: categoryTitle },
     });
 
+    if (!category) {
+      category = categoriesRepository.create({ title: categoryTitle });
+      category = await categoriesRepository.save(category);
+    }
+
+    const newTransaction = transactionsRepository.create({
+      title,
+      type,
+      value,
+      category,
+    });
+
+    await transactionsRepository.save(newTransaction);
+
+    // await getManager().transaction(async em => {
+    // });
+
     return newTransaction;
+  }
+
+  public async executeMany(
+    transactions: CreateTransactionDto[],
+  ): Promise<Transaction[]> {
+    const categoriesRepository = getRepository(Category);
+    const newCategories = transactions.map(tr =>
+      categoriesRepository.create({ title: tr.categoryTitle }),
+    );
+
+    const conn = getConnection();
+
+    await conn
+      .createQueryBuilder()
+      .insert()
+      .into(Category)
+      .values(newCategories)
+      .onConflict(`("title") DO NOTHING`)
+      .execute();
+
+    const categoryTitles = newCategories.map(cate => cate.title);
+
+    const persistedCategories = await categoriesRepository.find({
+      title: In(categoryTitles),
+    });
+
+    const transactionsRepository = getCustomRepository(TransactionsRepository);
+
+    const newTransactions = transactions.map(
+      ({ title, type, value, categoryTitle }) => {
+        const category = persistedCategories.find(
+          cate => cate.title === categoryTitle,
+        );
+
+        return transactionsRepository.create({ title, type, value, category });
+      },
+    );
+
+    const result = await transactionsRepository.save(newTransactions);
+
+    return result;
   }
 }
 
