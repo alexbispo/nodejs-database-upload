@@ -45,7 +45,13 @@ class ImportTransactionsService {
 
     const records = await readTransactionsPromise;
 
-    const transactions = await createTransactionService.executeMany(records);
+    const transactions = await createTransactionService.execute(records);
+
+    const exitsFileInPath = await fs.promises.stat(path);
+
+    if (exitsFileInPath) {
+      await fs.promises.unlink(path);
+    }
 
     return transactions;
   }

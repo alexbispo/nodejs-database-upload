@@ -1,7 +1,7 @@
 import multer from 'multer';
 import path from 'path';
 
-const dirPath = path.resolve(__dirname, '..', '..', 'temp');
+const dirPath = path.resolve(__dirname, '..', '..', 'tmp');
 
 export default {
   dir: dirPath,

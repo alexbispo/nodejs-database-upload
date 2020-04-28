@@ -25,12 +25,14 @@ transactionsRouter.post('/', async (req, resp) => {
 
   const createTransactionService = new CreateTransactionService();
 
-  const newTransaction = await createTransactionService.execute({
-    title,
-    type,
-    value,
-    categoryTitle: category,
-  });
+  const [newTransaction] = await createTransactionService.execute([
+    {
+      title,
+      type,
+      value,
+      categoryTitle: category,
+    },
+  ]);
 
   return resp.json(newTransaction);
 });

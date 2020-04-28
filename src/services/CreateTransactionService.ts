@@ -13,54 +13,38 @@ interface CreateTransactionDto {
 }
 
 class CreateTransactionService {
-  public async execute({
-    title,
-    type,
-    value,
-    categoryTitle,
-  }: CreateTransactionDto): Promise<Transaction> {
+  public async execute(
+    transactions: CreateTransactionDto[],
+  ): Promise<Transaction[]> {
     const transactionsRepository = getCustomRepository(TransactionsRepository);
+    let balance = await transactionsRepository.getBalance();
 
-    const balance = await transactionsRepository.getBalance();
+    // TODO move this logic to getBalance method.
+    balance = transactions.reduce((acc, { type, value }) => {
+      if (type === 'income') {
+        acc.income += value;
+      } else if (type === 'outcome') {
+        acc.outcome += value;
+      }
+      return acc;
+    }, balance);
 
-    if (type === 'outcome' && balance.total < value) {
+    balance.total += balance.income - balance.outcome;
+
+    const invalidTransactionIndex = transactions.findIndex(
+      ({ type, value }) => type === 'outcome' && value > balance.total,
+    );
+
+    if (invalidTransactionIndex > -1) {
       throw new AppError('Invalid outcome transaction');
     }
 
-    const categoriesRepository = getRepository(Category);
-
-    let category = await categoriesRepository.findOne({
-      where: { title: categoryTitle },
-    });
-
-    if (!category) {
-      category = categoriesRepository.create({ title: categoryTitle });
-      category = await categoriesRepository.save(category);
-    }
-
-    const newTransaction = transactionsRepository.create({
-      title,
-      type,
-      value,
-      category,
-    });
-
-    await transactionsRepository.save(newTransaction);
-
-    // await getManager().transaction(async em => {
-    // });
-
-    return newTransaction;
-  }
-
-  public async executeMany(
-    transactions: CreateTransactionDto[],
-  ): Promise<Transaction[]> {
     const categoriesRepository = getRepository(Category);
     const newCategories = transactions.map(tr =>
       categoriesRepository.create({ title: tr.categoryTitle }),
     );
 
+    // TODO maybe move all database changes to a same transaction
     const conn = getConnection();
 
     await conn
@@ -76,8 +60,6 @@ class CreateTransactionService {
     const persistedCategories = await categoriesRepository.find({
       title: In(categoryTitles),
     });
-
-    const transactionsRepository = getCustomRepository(TransactionsRepository);
 
     const newTransactions = transactions.map(
       ({ title, type, value, categoryTitle }) => {
